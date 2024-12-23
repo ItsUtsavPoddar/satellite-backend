@@ -11,11 +11,13 @@ import org.springframework.transaction.annotation.Transactional;
 @Repository
 public interface TleRepository extends JpaRepository<TleData, Long> {
     TleData findBySatNumber(String satNumber);
-    
 
     @Modifying
     @Transactional
     @Query("DELETE FROM TleData t WHERE t.satNumber = :satNumber")
     void deleteBySatNumber(@Param("satNumber") String satNumber);
 
+
+    @Query(value = "SELECT * FROM tle_data ORDER BY fetch_count DESC LIMIT 1", nativeQuery = true)
+    TleData findMostFetched();
 }

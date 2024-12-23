@@ -15,6 +15,7 @@ public class TleData {
     private String satNumber;
     private String tleString;
     private LocalDateTime lastUpdated;
+    private int fetchCount; // New field to track fetch count
 
     // Getters and setters
     public Long getId() {
@@ -47,5 +48,13 @@ public class TleData {
 
     public void setLastUpdated(LocalDateTime lastUpdated) {
         this.lastUpdated = lastUpdated;
+    }
+
+    public int getFetchCount() {
+        return fetchCount;
+    }
+
+    public void setFetchCount(int fetchCount) {
+        this.fetchCount = fetchCount;
     }
 }

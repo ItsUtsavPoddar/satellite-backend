@@ -31,3 +31,4 @@ build/
 
 ### VS Code ###
 .vscode/
+satellite/src/main/resources/application.properties
