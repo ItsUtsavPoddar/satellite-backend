@@ -1,0 +1,14 @@
+{
+  "configurations": [
+    {
+      "type": "java",
+      "name": "Spring Boot-SatelliteApplication<satellite>",
+      "request": "launch",
+      "cwd": "${workspaceFolder}",
+      "mainClass": "backend.satellite.SatelliteApplication",
+      "projectName": "satellite",
+      "args": "",
+      "envFile": "${workspaceFolder}/.env"
+    }
+  ]
+}

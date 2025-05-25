@@ -42,20 +42,6 @@ public class TleService {
         return tleData;
     }
 
-    public TleData addTleData(TleData tleData) {
-        tleData.setLastUpdated(LocalDateTime.now());
-        tleData.setFetchCount(0); // Initialize fetch count
-        return tleRepository.save(tleData);
-    }
-
-    public TleData updateTleData(Long id, TleData tleData) {
-        TleData existingTleData = tleRepository.findById(id).orElseThrow(() -> new RuntimeException("TLE data not found"));
-        existingTleData.setSatNumber(tleData.getSatNumber());
-        existingTleData.setTleString(tleData.getTleString());
-        existingTleData.setLastUpdated(LocalDateTime.now());
-        return tleRepository.save(existingTleData);
-    }
-
     public void deleteTleData(Long id) {
         tleRepository.deleteById(id);
     }
