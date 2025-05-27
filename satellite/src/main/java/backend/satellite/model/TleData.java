@@ -30,7 +30,7 @@ public class TleData {
         return satNumber;
     }
 
-    public void setSatNumber(String satNumber) {
+    public void setSatNumber(String satNumber) {   //satellite catlog numbers 
         this.satNumber = satNumber;
     }
 
