@@ -12,4 +12,4 @@ jobs:
       - name: Ping Render Server
         run: |
           echo "Pinging Render..."
-          curl -m 10 -s -o /dev/null -w "%{http_code}" https://satellite-backend-v1.onrender.com/actuator/health || true
+           curl -m 60 -w "%{http_code}" https://satellite-backend-v1.onrender.com/actuator/health || true
