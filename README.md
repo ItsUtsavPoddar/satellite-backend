@@ -1,7 +1,7 @@
 # 🛰️ Satellite Tracker – Backend
 
 This is the backend service for the [Satellite Tracker](https://satellite.utsv.tech) project.  
-It is built with **Spring Boot**, containerized with **Docker**, and powered by a **MySQL database**.
+It is built with **Spring Boot**, containerized using **Docker**, and connected to a **MySQL database**.
 
 It handles:
 - Fetching and caching TLE data from Celestrak  
@@ -13,28 +13,28 @@ It handles:
 
 ## 🧭 Full Project Overview
 
-You can learn more about the overall project, frontend, astronomical models, and visual features in the main README:
+You can learn more about the overall project, frontend logic, orbital math, and visual features here:
 
-👉 [Satellite Tracker – Frontend (Main Project Repo)](https://github.com/ItsUtsavPoddar/satellite-frontend)
+👉 [Satellite Tracker – Frontend (Main Project Repo)](https://github.com/ItsUtsavPoddar/satellite-frontend)  
+👉 🌐 [Live Demo](https://satellite.utsv.tech)
 
 ---
 
 ## 🚀 Live Deployment
 
-- 🔗 API URL: [https://satellite-backend-v1.onrender.com](https://satellite-backend-v1.onrender.com)
-- 🌐 Frontend: [https://satellite.utsv.tech](https://satellite.utsv.tech)
+- 🔗 **Backend API**: [https://satellite-backend-v1.onrender.com](https://satellite-backend-v1.onrender.com)
+- 🛰️ **Frontend**: [https://satellite.utsv.tech](https://satellite.utsv.tech)
 
-> This is a free Render instance kept alive via GitHub Actions and CronJobs.
+> Hosted on Render's free tier with GitHub Actions and CronJobs to avoid auto-sleep during inactivity.
 
 ---
 
 ## ⚙️ Tech Stack
 
-- Spring Boot (Java 17)
-- MySQL (CleverCloud)
-- RESTful API
+- Java 17 with Spring Boot
+- MySQL (CleverCloud Free Tier)
 - Docker for packaging
-- Hosted on [Render](https://render.com)
+- Render for backend hosting
 
 ---
 
@@ -43,7 +43,7 @@ You can learn more about the overall project, frontend, astronomical models, and
 ### ✅ Requirements:
 - Java 17+  
 - Docker installed  
-- MySQL database (local or cloud like CleverCloud)
+- MySQL database (local or hosted)
 
 ### 🔹 Steps:
 
