@@ -64,13 +64,13 @@ public class TleService {
 
     @Retryable(
         retryFor = {RestClientException.class},
-        maxAttempts = 3,
-        backoff = @Backoff(delay = 2000, multiplier = 2)
+        maxAttempts = 5,
+        backoff = @Backoff(delay = 3000, multiplier = 2, maxDelay = 15000)
     )
     private TleData fetchTleDataFromCelestrak(String satNumber) {
         try {
-            logger.info("Calling Celestrak API for satellite: {}", satNumber);
             String url = String.format(CELESTRAK_URL, satNumber);
+            logger.info("Calling Celestrak API for satellite: {} - URL: {}", satNumber, url);
             String tleString = restTemplate.getForObject(url, String.class);
 
             if (tleString == null || tleString.trim().isEmpty()) {
@@ -85,9 +85,15 @@ public class TleService {
             logger.info("Successfully fetched TLE data for satellite: {}", satNumber);
             return tleData;
         } catch (RestClientException e) {
-            logger.error("Error fetching TLE data from Celestrak for satellite: {}", satNumber, e);
-            throw new ExternalApiException("Failed to fetch TLE data from Celestrak for satellite: " + satNumber, e);
+            logger.warn("Attempt failed to fetch TLE data from Celestrak for satellite: {} - {}", satNumber, e.getMessage());
+            throw e; // Let @Retryable handle the retry
         }
+    }
+
+    @org.springframework.retry.annotation.Recover
+    public TleData recoverFromCelestrakFailure(RestClientException e, String satNumber) {
+        logger.error("All retry attempts exhausted for satellite: {}. Error: {}", satNumber, e.getMessage());
+        throw new ExternalApiException("Failed to fetch TLE data from Celestrak after multiple retries for satellite: " + satNumber, e);
     }
 
     @Transactional(readOnly = true)
