@@ -7,7 +7,9 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.client.RestTemplate;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -20,6 +22,9 @@ public class TleController {
     @Autowired
     private TleService tleService;
 
+    @Autowired
+    private RestTemplate restTemplate;
+
     @GetMapping("/")
     public ResponseEntity<Map<String, String>> defaultRoute() {
         return ResponseEntity.ok(Map.of(
@@ -27,6 +32,36 @@ public class TleController {
             "version", "2.0",
             "endpoints", "/api/{satNumber}, /api/most-fetched, /api/all"
         ));
+    }
+
+    @GetMapping("/health/celestrak")
+    public ResponseEntity<Map<String, Object>> checkCelestrakConnectivity() {
+        logger.info("Testing Celestrak connectivity");
+        Map<String, Object> response = new HashMap<>();
+        
+        try {
+            long startTime = System.currentTimeMillis();
+            String testUrl = "https://celestrak.org/NORAD/elements/gp.php?CATNR=25544&FORMAT=TLE";
+            String result = restTemplate.getForObject(testUrl, String.class);
+            long duration = System.currentTimeMillis() - startTime;
+            
+            response.put("status", "SUCCESS");
+            response.put("duration_ms", duration);
+            response.put("celestrak_reachable", true);
+            response.put("response_length", result != null ? result.length() : 0);
+            
+            logger.info("Celestrak connectivity test successful in {}ms", duration);
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            long duration = System.currentTimeMillis() - System.currentTimeMillis();
+            response.put("status", "FAILED");
+            response.put("celestrak_reachable", false);
+            response.put("error", e.getClass().getSimpleName());
+            response.put("message", e.getMessage());
+            
+            logger.error("Celestrak connectivity test failed: {}", e.getMessage());
+            return ResponseEntity.status(503).body(response);
+        }
     }
 
     @GetMapping("/{satNumber}")
