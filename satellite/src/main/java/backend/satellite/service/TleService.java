@@ -22,7 +22,7 @@ import java.util.List;
 public class TleService {
 
     private static final Logger logger = LoggerFactory.getLogger(TleService.class);
-    private static final String CELESTRAK_URL = "https://celestrak.org/NORAD/elements/gp.php?CATNR=";
+    private static final String CELESTRAK_URL = "https://celestrak.org/NORAD/elements/gp.php?CATNR=%s&FORMAT=TLE";
     private static final int CACHE_HOURS = 5;
 
     @Autowired
@@ -70,7 +70,8 @@ public class TleService {
     private TleData fetchTleDataFromCelestrak(String satNumber) {
         try {
             logger.info("Calling Celestrak API for satellite: {}", satNumber);
-            String tleString = restTemplate.getForObject(CELESTRAK_URL + satNumber, String.class);
+            String url = String.format(CELESTRAK_URL, satNumber);
+            String tleString = restTemplate.getForObject(url, String.class);
 
             if (tleString == null || tleString.trim().isEmpty()) {
                 throw new TleDataNotFoundException("No TLE data found for satellite: " + satNumber);
