@@ -1,16 +1,17 @@
 package backend.satellite;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 
 @SpringBootApplication
 public class SatelliteApplication {
 
+    private static final Logger logger = LoggerFactory.getLogger(SatelliteApplication.class);
+
     public static void main(String[] args) {
-        // System.out.println("DB_URL from env: " + System.getenv("DB_URL"));
-        // System.out.println("DB_USER from env: " + System.getenv("DB_USER"));
-        // System.out.println("DB_PASSWORD from env: " + System.getenv("DB_PASSWORD"));
         SpringApplication.run(SatelliteApplication.class, args);
-        System.out.println("Satellite Application Started");
+        logger.info("Satellite Backend Application Started Successfully");
     }
 }

@@ -1,9 +1,17 @@
 package backend.satellite.service;
 
+import backend.satellite.exception.ExternalApiException;
+import backend.satellite.exception.TleDataNotFoundException;
 import backend.satellite.model.TleData;
 import backend.satellite.repository.TleRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.retry.annotation.Backoff;
+import org.springframework.retry.annotation.Retryable;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 
 import java.time.LocalDateTime;
@@ -13,28 +21,36 @@ import java.util.List;
 @Service
 public class TleService {
 
+    private static final Logger logger = LoggerFactory.getLogger(TleService.class);
+    private static final String CELESTRAK_URL = "https://celestrak.org/NORAD/elements/gp.php?CATNR=";
+    private static final int CACHE_HOURS = 5;
+
     @Autowired
     private TleRepository tleRepository;
 
-    private static final String CELESTREK_URL = "https://celestrak.com/NORAD/elements/gp.php?CATNR=";
+    @Autowired
+    private RestTemplate restTemplate;
 
+    @Transactional
     public TleData getTleData(String satNumber) {
+        logger.debug("Fetching TLE data for satellite: {}", satNumber);
+        
         TleData tleData = tleRepository.findBySatNumber(satNumber);
 
-        if (tleData == null || ChronoUnit.HOURS.between(tleData.getLastUpdated(), LocalDateTime.now()) > 5) {
-            int fetchCount = 0;
-            // Preserve fetch count if the record exists
+        if (tleData == null || isDataStale(tleData)) {
+            logger.info("TLE data not found or stale for satellite: {}. Fetching from Celestrak.", satNumber);
+            
+            int existingFetchCount = (tleData != null) ? tleData.getFetchCount() : 0;
+            
             if (tleData != null) {
-                fetchCount = tleData.getFetchCount();
                 tleRepository.deleteBySatNumber(satNumber);
             }
 
-            // Fetch new TLE data
-            tleData = fetchTleDataFromCelestrek(satNumber);
-            tleData.setFetchCount(fetchCount + 1); // Initialize or increment fetch count
+            tleData = fetchTleDataFromCelestrak(satNumber);
+            tleData.setFetchCount(existingFetchCount + 1);
             tleRepository.save(tleData);
         } else {
-            // Increment fetch count
+            logger.debug("Using cached TLE data for satellite: {}", satNumber);
             tleData.setFetchCount(tleData.getFetchCount() + 1);
             tleRepository.save(tleData);
         }
@@ -42,28 +58,61 @@ public class TleService {
         return tleData;
     }
 
-    public void deleteTleData(Long id) {
-        tleRepository.deleteById(id);
+    private boolean isDataStale(TleData tleData) {
+        return ChronoUnit.HOURS.between(tleData.getLastUpdated(), LocalDateTime.now()) > CACHE_HOURS;
     }
 
-     public TleData getMostFetchedTleData() {
+    @Retryable(
+        retryFor = {RestClientException.class},
+        maxAttempts = 3,
+        backoff = @Backoff(delay = 2000, multiplier = 2)
+    )
+    private TleData fetchTleDataFromCelestrak(String satNumber) {
+        try {
+            logger.info("Calling Celestrak API for satellite: {}", satNumber);
+            String tleString = restTemplate.getForObject(CELESTRAK_URL + satNumber, String.class);
+
+            if (tleString == null || tleString.trim().isEmpty()) {
+                throw new TleDataNotFoundException("No TLE data found for satellite: " + satNumber);
+            }
+
+            TleData tleData = new TleData();
+            tleData.setSatNumber(satNumber);
+            tleData.setTleString(tleString);
+            tleData.setLastUpdated(LocalDateTime.now());
+
+            logger.info("Successfully fetched TLE data for satellite: {}", satNumber);
+            return tleData;
+        } catch (RestClientException e) {
+            logger.error("Error fetching TLE data from Celestrak for satellite: {}", satNumber, e);
+            throw new ExternalApiException("Failed to fetch TLE data from Celestrak for satellite: " + satNumber, e);
+        }
+    }
+
+    @Transactional(readOnly = true)
+    public TleData getMostFetchedTleData() {
+        logger.debug("Fetching most requested satellite data");
         TleData mostFetched = tleRepository.findMostFetched();
+        
+        if (mostFetched == null) {
+            throw new TleDataNotFoundException("No TLE data available in the database");
+        }
+        
         return mostFetched;
     }
 
-    private TleData fetchTleDataFromCelestrek(String satNumber) {
-        RestTemplate restTemplate = new RestTemplate();
-        String tleString = restTemplate.getForObject(CELESTREK_URL + satNumber, String.class);
-
-        TleData tleData = new TleData();
-        tleData.setSatNumber(satNumber);
-        tleData.setTleString(tleString);
-        tleData.setLastUpdated(LocalDateTime.now());
-
-        return tleData;
+    @Transactional(readOnly = true)
+    public List<TleData> getAllTleData() {
+        logger.debug("Fetching all TLE data");
+        return tleRepository.findAll();
     }
 
-    public List<TleData> getAllTleData() {
-        return tleRepository.findAll();
+    @Transactional
+    public void deleteTleData(Long id) {
+        logger.info("Deleting TLE data with ID: {}", id);
+        if (!tleRepository.existsById(id)) {
+            throw new TleDataNotFoundException("TLE data not found with ID: " + id);
+        }
+        tleRepository.deleteById(id);
     }
 }

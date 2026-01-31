@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: satellite-backend
+    env: docker
+    dockerfilePath: ./satellite/Dockerfile
+    dockerContext: ./satellite
+    envVars:
+      - key: DB_URL
+        sync: false
+      - key: DB_USERNAME
+        sync: false
+      - key: DB_PASSWORD
+        sync: false
+      - key: JAVA_OPTS
+        value: "-XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0 -XX:+UseG1GC"
+    healthCheckPath: /actuator/health
+    plan: free

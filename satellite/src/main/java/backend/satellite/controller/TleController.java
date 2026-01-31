@@ -2,45 +2,70 @@ package backend.satellite.controller;
 
 import backend.satellite.model.TleData;
 import backend.satellite.service.TleService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/")
 public class TleController {
 
+    private static final Logger logger = LoggerFactory.getLogger(TleController.class);
+
     @Autowired
     private TleService tleService;
 
+    @GetMapping("/")
+    public ResponseEntity<Map<String, String>> defaultRoute() {
+        return ResponseEntity.ok(Map.of(
+            "message", "Welcome to the Satellite TLE Data API",
+            "version", "2.0",
+            "endpoints", "/api/{satNumber}, /api/most-fetched, /api/all"
+        ));
+    }
+
     @GetMapping("/{satNumber}")
-    public TleData getTleData(@PathVariable String satNumber) {
-        if (!isValidInteger(satNumber)) {
-            throw new IllegalArgumentException("Invalid satellite number: " + satNumber);
+    public ResponseEntity<TleData> getTleData(@PathVariable String satNumber) {
+        logger.info("Received request for satellite number: {}", satNumber);
+        
+        if (!isValidSatelliteNumber(satNumber)) {
+            throw new IllegalArgumentException("Invalid satellite number: " + satNumber + ". Must be a positive integer.");
         }
-        return tleService.getTleData(satNumber);
+        
+        TleData data = tleService.getTleData(satNumber);
+        return ResponseEntity.ok(data);
     }
 
     @GetMapping("/most-fetched")
-    public TleData getMostFetchedTleData() {     //it will fetch the Satellite from database.
-        return tleService.getMostFetchedTleData();
+    public ResponseEntity<TleData> getMostFetchedTleData() {
+        logger.info("Received request for most fetched satellite data");
+        TleData data = tleService.getMostFetchedTleData();
+        return ResponseEntity.ok(data);
     }
 
     @GetMapping("/all")
-    public List<TleData> getAllTleData() {
-        return tleService.getAllTleData();
+    public ResponseEntity<List<TleData>> getAllTleData() {
+        logger.info("Received request for all satellite data");
+        List<TleData> data = tleService.getAllTleData();
+        return ResponseEntity.ok(data);
     }
 
-    @GetMapping("/")
-    public String defaultRoute() {
-        return "Welcome to the Satellite TLE Data API";
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Map<String, String>> deleteTleData(@PathVariable Long id) {
+        logger.info("Received request to delete TLE data with ID: {}", id);
+        tleService.deleteTleData(id);
+        return ResponseEntity.ok(Map.of("message", "TLE data deleted successfully", "id", id.toString()));
     }
 
-    private boolean isValidInteger(String str) {
+    private boolean isValidSatelliteNumber(String satNumber) {
         try {
-            Integer.parseInt(str);
-            return true;
+            int number = Integer.parseInt(satNumber);
+            return number > 0;
         } catch (NumberFormatException e) {
             return false;
         }

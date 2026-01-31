@@ -1,23 +1,33 @@
 package backend.satellite.model;
 
-import javax.persistence.Entity;
-import javax.persistence.GeneratedValue;
-import javax.persistence.GenerationType;
-import javax.persistence.Id;
+import jakarta.persistence.Entity;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.Column;
+import jakarta.persistence.Table;
 import java.time.LocalDateTime;
 
 @Entity
+@Table(name = "tle_data")
 public class TleData {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+    
+    @Column(nullable = false, unique = true)
     private String satNumber;
+    
+    @Column(columnDefinition = "TEXT")
     private String tleString;
+    
+    @Column(nullable = false)
     private LocalDateTime lastUpdated;
-    private int fetchCount; // New field to track fetch count
+    
+    @Column(nullable = false)
+    private int fetchCount = 0;
 
-    // Getters and setters
     public Long getId() {
         return id;
     }

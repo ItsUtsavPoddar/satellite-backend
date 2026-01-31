@@ -1,0 +1,38 @@
+version: "3.8"
+
+services:
+  # For local testing with CleverCloud MySQL (using .env file)
+  app:
+    build:
+      context: ./satellite
+      dockerfile: Dockerfile
+    container_name: satellite-backend
+    environment:
+      DB_URL: ${DB_URL}
+      DB_USERNAME: ${DB_USERNAME}
+      DB_PASSWORD: ${DB_PASSWORD}
+    ports:
+      - "8081:8081"
+    restart: unless-stopped
+
+  # Uncomment below for local MySQL instance
+  # mysql:
+  #   image: mysql:8.0
+  #   container_name: satellite-mysql
+  #   environment:
+  #     MYSQL_ROOT_PASSWORD: rootpassword
+  #     MYSQL_DATABASE: satellite_db
+  #     MYSQL_USER: satellite_user
+  #     MYSQL_PASSWORD: satellite_pass
+  #   ports:
+  #     - "3306:3306"
+  #   volumes:
+  #     - mysql-data:/var/lib/mysql
+  #   healthcheck:
+  #     test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+  #     interval: 10s
+  #     timeout: 5s
+  #     retries: 5
+
+# volumes:
+#   mysql-data:
