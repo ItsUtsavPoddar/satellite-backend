@@ -7,10 +7,14 @@ import backend.satellite.repository.TleRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.*;
 import org.springframework.retry.annotation.Backoff;
 import org.springframework.retry.annotation.Retryable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.LinkedMultiValueMap;
+import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 
@@ -22,8 +26,15 @@ import java.util.List;
 public class TleService {
 
     private static final Logger logger = LoggerFactory.getLogger(TleService.class);
-    private static final String CELESTRAK_URL = "https://celestrak.org/NORAD/elements/gp.php?CATNR=%s&FORMAT=TLE";
+    private static final String SPACETRACK_AUTH_URL = "https://www.space-track.org/ajaxauth/login";
+    private static final String SPACETRACK_TLE_URL = "https://www.space-track.org/basicspacedata/query/class/gp/NORAD_CAT_ID/%s/orderby/EPOCH%%20desc/limit/1/format/tle";
     private static final int CACHE_HOURS = 5;
+
+    @Value("${spacetrack.username:}")
+    private String spacetrackUsername;
+
+    @Value("${spacetrack.password:}")
+    private String spacetrackPassword;
 
     @Autowired
     private TleRepository tleRepository;
@@ -38,7 +49,7 @@ public class TleService {
         TleData tleData = tleRepository.findBySatNumber(satNumber);
 
         if (tleData == null || isDataStale(tleData)) {
-            logger.info("TLE data not found or stale for satellite: {}. Fetching from Celestrak.", satNumber);
+            logger.info("TLE data not found or stale for satellite: {}. Fetching from Space-Track.", satNumber);
             
             int existingFetchCount = (tleData != null) ? tleData.getFetchCount() : 0;
             
@@ -46,7 +57,7 @@ public class TleService {
                 tleRepository.deleteBySatNumber(satNumber);
             }
 
-            tleData = fetchTleDataFromCelestrak(satNumber);
+            tleData = fetchTleDataFromSpaceTrack(satNumber);
             tleData.setFetchCount(existingFetchCount + 1);
             tleRepository.save(tleData);
         } else {
@@ -64,14 +75,25 @@ public class TleService {
 
     @Retryable(
         retryFor = {RestClientException.class},
-        maxAttempts = 5,
-        backoff = @Backoff(delay = 3000, multiplier = 2, maxDelay = 15000)
+        maxAttempts = 3,
+        backoff = @Backoff(delay = 2000, multiplier = 2, maxDelay = 10000)
     )
-    private TleData fetchTleDataFromCelestrak(String satNumber) {
+    private TleData fetchTleDataFromSpaceTrack(String satNumber) {
         try {
-            String url = String.format(CELESTRAK_URL, satNumber);
-            logger.info("Calling Celestrak API for satellite: {} - URL: {}", satNumber, url);
-            String tleString = restTemplate.getForObject(url, String.class);
+            // Authenticate and get session cookie
+            logger.info("Authenticating with Space-Track for satellite: {}", satNumber);
+            String cookie = authenticateSpaceTrack();
+            
+            // Fetch TLE data using the cookie
+            String url = String.format(SPACETRACK_TLE_URL, satNumber);
+            logger.info("Fetching TLE data from Space-Track: {}", satNumber);
+            
+            HttpHeaders headers = new HttpHeaders();
+            headers.set("Cookie", cookie);
+            HttpEntity<String> entity = new HttpEntity<>(headers);
+            
+            ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.GET, entity, String.class);
+            String tleString = response.getBody();
 
             if (tleString == null || tleString.trim().isEmpty()) {
                 throw new TleDataNotFoundException("No TLE data found for satellite: " + satNumber);
@@ -82,18 +104,46 @@ public class TleService {
             tleData.setTleString(tleString);
             tleData.setLastUpdated(LocalDateTime.now());
 
-            logger.info("Successfully fetched TLE data for satellite: {}", satNumber);
+            logger.info("Successfully fetched TLE data for satellite: {} from Space-Track", satNumber);
             return tleData;
         } catch (RestClientException e) {
-            logger.warn("Attempt failed to fetch TLE data from Celestrak for satellite: {} - {}", satNumber, e.getMessage());
+            logger.warn("Attempt failed to fetch TLE data from Space-Track for satellite: {} - {}", satNumber, e.getMessage());
             throw e; // Let @Retryable handle the retry
         }
     }
 
+    private String authenticateSpaceTrack() {
+        try {
+            MultiValueMap<String, String> formData = new LinkedMultiValueMap<>();
+            formData.add("identity", spacetrackUsername);
+            formData.add("password", spacetrackPassword);
+            
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
+            
+            HttpEntity<MultiValueMap<String, String>> request = new HttpEntity<>(formData, headers);
+            
+            ResponseEntity<String> response = restTemplate.postForEntity(SPACETRACK_AUTH_URL, request, String.class);
+            
+            // Extract cookie from response
+            List<String> cookies = response.getHeaders().get(HttpHeaders.SET_COOKIE);
+            if (cookies != null && !cookies.isEmpty()) {
+                String cookie = cookies.get(0);
+                logger.debug("Space-Track authentication successful");
+                return cookie;
+            }
+            
+            throw new ExternalApiException("Failed to authenticate with Space-Track: No cookie received");
+        } catch (Exception e) {
+            logger.error("Space-Track authentication failed: {}", e.getMessage());
+            throw new ExternalApiException("Failed to authenticate with Space-Track", e);
+        }
+    }
+
     @org.springframework.retry.annotation.Recover
-    public TleData recoverFromCelestrakFailure(RestClientException e, String satNumber) {
+    public TleData recoverFromSpaceTrackFailure(RestClientException e, String satNumber) {
         logger.error("All retry attempts exhausted for satellite: {}. Error: {}", satNumber, e.getMessage());
-        throw new ExternalApiException("Failed to fetch TLE data from Celestrak after multiple retries for satellite: " + satNumber, e);
+        throw new ExternalApiException("Failed to fetch TLE data from Space-Track after multiple retries for satellite: " + satNumber, e);
     }
 
     @Transactional(readOnly = true)
