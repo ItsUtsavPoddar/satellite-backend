@@ -27,7 +27,7 @@ public class TleService {
 
     private static final Logger logger = LoggerFactory.getLogger(TleService.class);
     private static final String SPACETRACK_AUTH_URL = "https://www.space-track.org/ajaxauth/login";
-    private static final String SPACETRACK_TLE_URL = "https://www.space-track.org/basicspacedata/query/class/gp/NORAD_CAT_ID/%s/orderby/EPOCH%%20desc/limit/1/format/tle";
+    private static final String SPACETRACK_JSON_URL = "https://www.space-track.org/basicspacedata/query/class/gp/NORAD_CAT_ID/%s/orderby/EPOCH%%20desc/limit/1/format/json";
     private static final int CACHE_HOURS = 5;
 
     @Value("${spacetrack.username:}")
@@ -84,8 +84,8 @@ public class TleService {
             logger.info("Authenticating with Space-Track for satellite: {}", satNumber);
             String cookie = authenticateSpaceTrack();
             
-            // Fetch TLE data using the cookie
-            String url = String.format(SPACETRACK_TLE_URL, satNumber);
+            // Fetch TLE data in JSON format to get satellite name
+            String url = String.format(SPACETRACK_JSON_URL, satNumber);
             logger.info("Fetching TLE data from Space-Track: {}", satNumber);
             
             HttpHeaders headers = new HttpHeaders();
@@ -93,11 +93,14 @@ public class TleService {
             HttpEntity<String> entity = new HttpEntity<>(headers);
             
             ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.GET, entity, String.class);
-            String tleString = response.getBody();
+            String jsonResponse = response.getBody();
 
-            if (tleString == null || tleString.trim().isEmpty()) {
+            if (jsonResponse == null || jsonResponse.trim().isEmpty() || jsonResponse.equals("[]")) {
                 throw new TleDataNotFoundException("No TLE data found for satellite: " + satNumber);
             }
+
+            // Parse JSON to extract satellite name and TLE lines
+            String tleString = parseSpaceTrackJson(jsonResponse);
 
             TleData tleData = new TleData();
             tleData.setSatNumber(satNumber);
@@ -109,6 +112,47 @@ public class TleService {
         } catch (RestClientException e) {
             logger.warn("Attempt failed to fetch TLE data from Space-Track for satellite: {} - {}", satNumber, e.getMessage());
             throw e; // Let @Retryable handle the retry
+        }
+    }
+
+    private String parseSpaceTrackJson(String jsonResponse) {
+        try {
+            // Remove the array brackets and parse the JSON object
+            String jsonObject = jsonResponse.trim();
+            if (jsonObject.startsWith("[")) {
+                jsonObject = jsonObject.substring(1, jsonObject.length() - 1);
+            }
+            
+            // Extract OBJECT_NAME, TLE_LINE1, and TLE_LINE2 using simple string parsing
+            String objectName = extractJsonField(jsonObject, "OBJECT_NAME");
+            String tleLine1 = extractJsonField(jsonObject, "TLE_LINE1");
+            String tleLine2 = extractJsonField(jsonObject, "TLE_LINE2");
+            
+            if (objectName == null || tleLine1 == null || tleLine2 == null) {
+                throw new ExternalApiException("Failed to parse Space-Track JSON response");
+            }
+            
+            // Format as 3-line TLE (name + line1 + line2) with proper line endings
+            return objectName + "\r\n" + tleLine1 + "\r\n" + tleLine2 + "\r\n";
+        } catch (Exception e) {
+            logger.error("Error parsing Space-Track JSON: {}", e.getMessage());
+            throw new ExternalApiException("Failed to parse TLE data from Space-Track", e);
+        }
+    }
+    
+    private String extractJsonField(String json, String fieldName) {
+        try {
+            String searchKey = "\"" + fieldName + "\":\"";
+            int startIndex = json.indexOf(searchKey);
+            if (startIndex == -1) return null;
+            
+            startIndex += searchKey.length();
+            int endIndex = json.indexOf("\"", startIndex);
+            if (endIndex == -1) return null;
+            
+            return json.substring(startIndex, endIndex);
+        } catch (Exception e) {
+            return null;
         }
     }
 
