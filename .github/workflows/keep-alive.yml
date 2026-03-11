@@ -2,8 +2,11 @@ name: Keep Render Alive
 
 on:
   schedule:
-    - cron: '*/5 * * * *'  # Runs every 3 minutes (UTC)
+    - cron: '*/5 * * * *'  # Runs every 5 minutes (UTC)
   workflow_dispatch:        # Optional: allows manual triggering
+
+permissions:
+  contents: write
 
 jobs:
   ping:
@@ -12,4 +15,21 @@ jobs:
       - name: Ping Render Server
         run: |
           echo "Pinging Render..."
-           curl -m 60 -w "%{http_code}" https://satellite-backend-v1.onrender.com/actuator/health || true
+          curl -m 60 -w "%{http_code}" https://satellite-backend-v1.onrender.com/actuator/health || true
+
+  keep-repo-active:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Keep Repository Active
+        run: |
+          echo "Last kept alive: $(date -u +%Y-%m-%d)" > .github/keep-alive
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          git add .github/keep-alive
+          if ! git diff --cached --quiet; then
+            git commit -m "chore: keep repository active [skip ci]"
+            git push
+          fi
